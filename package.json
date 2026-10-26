@@ -1,0 +1,32 @@
+{
+  "name": "inventory-api-quality-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Original inventory REST API with Playwright API tests for isolated dev and prod environments.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "playwright test",
+    "test:dev": "playwright test --project=dev",
+    "test:prod": "playwright test --project=prod",
+    "test:list": "playwright test --list --reporter=list",
+    "report": "playwright show-report",
+    "verify": "npm run build && node scripts/verify.mjs",
+    "verify:persistence": "npm run build && node scripts/verify-persistence.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^5.6.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.7.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

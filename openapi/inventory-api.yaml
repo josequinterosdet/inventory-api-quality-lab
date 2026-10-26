@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: Inventory API Quality Lab
+  description: >
+    Original inventory REST API used as a public SDET portfolio lab. Products are
+    isolated by environment prefix. DELETE requires a Bearer token. Unknown environment prefixes return 404. Unknown product identifiers return 404. PUT replaces all input fields and preserves id and createdAt. Extra input properties are rejected.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local Docker host
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        '200':
+          description: The process is accepting traffic
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/{environment}/products:
+    parameters:
+      - $ref: '#/components/parameters/Environment'
+    get:
+      summary: List products sorted by SKU
+      operationId: listProducts
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ProductStatus'
+      responses:
+        '200':
+          description: Products in the environment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid status filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate SKU
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/{environment}/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Environment'
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      summary: Get a product by id
+      operationId: getProduct
+      responses:
+        '200':
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace a product
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '200':
+          description: Product replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate SKU
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a product
+      operationId: deleteProduct
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Product deleted
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Environment:
+      name: environment
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [dev, prod]
+    ProductId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    ProductStatus:
+      type: string
+      enum: [draft, active, archived]
+    ProductInput:
+      type: object
+      additionalProperties: false
+      required: [name, sku, price, stock, status]
+      properties:
+        name:
+          type: string
+          description: Must contain at least one non-whitespace character.
+          pattern: '\S'
+          minLength: 1
+          maxLength: 80
+        sku:
+          type: string
+          pattern: '^[A-Z0-9-]{4,20}$'
+        price:
+          type: number
+          minimum: 0.01
+          maximum: 99999.99
+          multipleOf: 0.01
+        stock:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+    Product:
+      type: object
+      additionalProperties: false
+      required: [name, sku, price, stock, status, id, createdAt, updatedAt]
+      properties:
+        name:
+          type: string
+          description: Must contain at least one non-whitespace character.
+          pattern: '\S'
+          minLength: 1
+          maxLength: 80
+        sku:
+          type: string
+          pattern: '^[A-Z0-9-]{4,20}$'
+        price:
+          type: number
+          minimum: 0.01
+          maximum: 99999.99
+          multipleOf: 0.01
+        stock:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+

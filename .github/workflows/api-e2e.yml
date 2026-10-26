@@ -1,0 +1,88 @@
+name: Inventory API E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  API_IMAGE: inventory-api-quality-lab:ci
+  API_CONTAINER: inventory-api-quality-lab
+  DELETE_TOKEN: inventory-lab-delete-token
+
+permissions:
+  contents: read
+
+jobs:
+  api-e2e:
+    name: API E2E - ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check the project
+        run: npm run typecheck
+
+      - name: Verify persistence across restart
+        run: npm run verify:persistence
+
+      - name: Build the API image
+        run: docker build --tag "$API_IMAGE" .
+
+      - name: Start the API container
+        run: |
+          docker run --detach \
+            --name "$API_CONTAINER" \
+            --publish 3000:3000 \
+            --env DELETE_TOKEN="$DELETE_TOKEN" \
+            "$API_IMAGE"
+
+      - name: Wait for the health endpoint
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/health > /dev/null; then
+              echo "API is ready after ${attempt} attempt(s)."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "The API did not become available within the allowed time."
+          docker logs "$API_CONTAINER"
+          exit 1
+
+      - name: Run the API test suite
+        run: npm run test:${{ matrix.environment }}
+
+      - name: Print API container logs
+        if: failure()
+        run: docker logs "$API_CONTAINER"
+
+      - name: Upload the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.environment }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Remove the API container
+        if: always()
+        run: docker rm --force "$API_CONTAINER"
+
